@@ -57,12 +57,7 @@ pub fn replaceNumberWords(allocator: Allocator, line: []const u8) ![]u8 {
         var input: []const u8 = current orelse line;
 
         var old_current = current;
-
-        current = try allocator.alloc(u8, std.mem.replacementSize(u8, input, replacement.needle, replacement.replace));
-        const n = std.mem.replace(u8, input, replacement.needle, replacement.replace, current.?);
-
-        _ = n;
-
+        current = try std.mem.replaceOwned(u8, allocator, input, replacement.needle, replacement.replace);
         if (old_current) |oc| {
             allocator.free(oc);
         }
@@ -72,19 +67,17 @@ pub fn replaceNumberWords(allocator: Allocator, line: []const u8) ![]u8 {
 }
 
 pub fn main() !void {
-    const allocator = std.heap.page_allocator;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == .ok);
+    const allocator = gpa.allocator();
+
     const stdout = std.io.getStdOut().writer();
 
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
     _ = args.skip();
-
-    var day_two = false;
-    if (args.next()) |arg| {
-        try stdout.print("arg={s}\n", .{arg});
-        day_two = std.mem.eql(u8, arg, "two");
-    }
+    const day_two = if (args.next()) |arg| std.mem.eql(u8, arg, "two") else false;
 
     var sum: u64 = 0;
 
@@ -96,10 +89,10 @@ pub fn main() !void {
 
     var buf: [2048]u8 = undefined;
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line_| {
-        var line: []u8 = line_;
-        if (day_two) {
-            line = try replaceNumberWords(allocator, line_);
-        }
+        var line: []u8 = if (day_two)
+            try replaceNumberWords(allocator, line_)
+        else
+            line_;
 
         var i: usize = 0;
 
